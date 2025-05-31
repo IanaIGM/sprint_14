@@ -12,7 +12,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-
+	//Закрываем подключение
+	defer db.GetDB().Close()
 	// Запуск сервера
 	err = server.Run()
 	if err != nil {

@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"sprint_14/pkg/db"
 	"sprint_14/pkg/utils"
@@ -16,9 +17,6 @@ func Init() {
 	http.HandleFunc("/api/task/done", taskDoneHandler)
 }
 
-// Константа для формата даты
-const dateFormat = "20060102"
-
 // Обработчик операций задач
 func TaskHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
@@ -29,18 +27,24 @@ func TaskHandler(w http.ResponseWriter, r *http.Request) {
 		id := r.URL.Query().Get("id")
 		task, err := db.GetTask(id)
 		if err != nil {
-			writeError(w, err.Error())
+			statusCode := http.StatusInternalServerError
+			if errors.Is(err, db.ErrNotFound) {
+				statusCode = http.StatusNotFound
+			}
+			writeError(w, err.Error(), statusCode)
 			return
 		}
-		writeJSON(w, task)
+		writeJSON(w, task, http.StatusOK)
 
 	case http.MethodDelete:
 
 		id := r.URL.Query().Get("id")
-
 		if err := db.DeleteTask(id); err != nil {
-
-			writeJSON(w, map[string]string{"error": err.Error()})
+			statusCode := http.StatusInternalServerError
+			if errors.Is(err, db.ErrNotFound) {
+				statusCode = http.StatusNotFound
+			}
+			writeError(w, err.Error(), statusCode)
 		} else {
 
 			w.Write([]byte(`{}`))
@@ -49,29 +53,29 @@ func TaskHandler(w http.ResponseWriter, r *http.Request) {
 	case http.MethodPut:
 		var t db.Task
 		if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
-			writeError(w, "Неверный формат json")
+			writeError(w, "Неверный формат json", http.StatusBadRequest)
 			return
 		}
 
 		//Проверяем ID и заголовок задачи
 		if t.ID == "" {
-			writeError(w, "Поле ID не может быть пустым")
+			writeError(w, "Поле ID не может быть пустым", http.StatusBadRequest)
 			return
 		}
 		if t.Title == "" {
-			writeError(w, "Поле Title не может быть пустым")
+			writeError(w, "Поле Title не может быть пустым", http.StatusBadRequest)
 			return
 		}
 		//Проверка формата даты
 		layout := "20060102"
 		if _, err := time.Parse(layout, t.Date); err != nil {
-			writeError(w, "Неверный формат даты")
+			writeError(w, "Неверный формат даты", http.StatusBadRequest)
 			return
 		}
 		//Проверка правила повторения задачи
 		if t.Repeat != "" {
 			if _, err := utils.NextDate(time.Now(), t.Date, t.Repeat); err != nil {
-				writeError(w, "Неверное правило повторения")
+				writeError(w, "Неверное правило повторения", http.StatusBadRequest)
 				return
 			}
 		}
@@ -87,7 +91,11 @@ func TaskHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if err := db.UpdateTask(&t); err != nil {
-			writeError(w, err.Error())
+			statusCode := http.StatusInternalServerError
+			if errors.Is(err, db.ErrConflict) {
+				statusCode = http.StatusConflict
+			}
+			writeError(w, err.Error(), statusCode)
 			return
 		}
 		w.Write([]byte(`{}`))
@@ -102,30 +110,39 @@ func taskDoneHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	if r.Method != http.MethodPost {
-		writeError(w, "Метод не поддерживается")
+		writeError(w, "Метод не поддерживается", http.StatusMethodNotAllowed)
 		return
 	}
 
 	//Читаем id задачи
 	id := r.URL.Query().Get("id")
 	if id == "" {
-		writeError(w, "Не указан идентификатор")
+		writeError(w, "Не указан идентификатор", http.StatusBadRequest)
 		return
 	}
 
 	//Получение задачи из БД
 	t, err := db.GetTask(id)
 	if err != nil {
-		writeError(w, err.Error())
+		statusCode := http.StatusInternalServerError
+		if errors.Is(err, db.ErrNotFound) {
+			statusCode = http.StatusNotFound
+		}
+		writeError(w, err.Error(), statusCode)
 		return
 	}
 
 	//Удаление если нет повторения
 	if t.Repeat == "" {
 		if err := db.DeleteTask(id); err != nil {
-			writeError(w, err.Error())
+			statusCode := http.StatusInternalServerError
+			if errors.Is(err, db.ErrNotFound) {
+				statusCode = http.StatusNotFound
+			}
+			writeError(w, err.Error(), statusCode)
 			return
 		}
+		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{}`))
 		return
 	}
@@ -133,20 +150,33 @@ func taskDoneHandler(w http.ResponseWriter, r *http.Request) {
 	//Парсинг даты
 	prev, err := time.Parse("20060102", t.Date)
 	if err != nil {
-		writeError(w, "Неверный формат даты")
+		writeError(w, "Неверный формат даты", http.StatusBadRequest)
 		return
 	}
 
 	nextDate, err := utils.NextDate(prev, t.Date, t.Repeat)
 	if err != nil {
-		writeError(w, "Неверное правило повторения")
+		writeError(w, "Неверное правило повторения", http.StatusBadRequest)
 		return
 	}
 
 	if err := db.UpdateDate(nextDate, id); err != nil {
-		writeError(w, err.Error())
-		return
+		statusCode := http.StatusInternalServerError
+		if errors.Is(err, db.ErrConflict) {
+			statusCode = http.StatusConflict
+			writeError(w, err.Error(), statusCode)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{}`))
 	}
+}
 
-	w.Write([]byte(`{}`))
+func writeError(w http.ResponseWriter, message string, statusCode int) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"error":  message,
+		"status": http.StatusText(statusCode),
+	})
 }

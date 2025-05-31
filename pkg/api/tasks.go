@@ -1,12 +1,14 @@
 package api
 
 import (
-	"encoding/json"
 	"log"
 	"net/http"
 	"sprint_14/pkg/db"
 	"time"
 )
+
+// Лимит задач
+const TaskLimit = 50
 
 type TasksResp struct {
 	Tasks []*db.Task `json:"tasks"`
@@ -18,14 +20,14 @@ func tasksHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	if r.Method != http.MethodGet {
-		writeError(w, "Метод не поддерживается")
+		writeError(w, "Метод не поддерживается", http.StatusBadRequest)
 		return
 	}
 
-	tasks, err := db.Tasks(50)
+	tasks, err := db.Tasks(TaskLimit)
 	if err != nil {
 		log.Printf("Ошибка получения задач: %v", err)
-		writeError(w, err.Error())
+		writeError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -38,18 +40,5 @@ func tasksHandler(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, TasksResp{
 		Tasks: tasks,
-	})
-}
-
-// Вывод ошибки
-func writeError(w http.ResponseWriter, msg string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusBadRequest)
-	json.NewEncoder(w).Encode(map[string]string{"error": msg})
-}
-
-// Отправить ответ
-func writeJSON(w http.ResponseWriter, data any) error {
-	w.Header().Set("Content-Type", "application/json")
-	return json.NewEncoder(w).Encode(data)
+	}, http.StatusOK)
 }

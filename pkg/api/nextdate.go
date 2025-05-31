@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"sprint_14/pkg/utils"
 	"time"
@@ -9,6 +10,16 @@ import (
 
 // Обработчик для /api/nextdate
 func nextDateHandler(w http.ResponseWriter, r *http.Request) {
+	// Проверка метода
+	if r.Method != http.MethodGet && r.Method != http.MethodPost {
+		w.Header().Set("Allow", "GET, POST")
+		http.Error(
+			w,
+			"Метод не поддерживается",
+			http.StatusMethodNotAllowed,
+		)
+		return
+	}
 	// Получаем параметры запроса
 	nowStr := r.FormValue("now")
 	dateStr := r.FormValue("date")
@@ -20,7 +31,7 @@ func nextDateHandler(w http.ResponseWriter, r *http.Request) {
 		now = time.Now()
 	} else {
 		var err error
-		now, err = time.Parse(dateFormat, nowStr)
+		now, err = time.Parse(utils.DateFormat, nowStr)
 		if err != nil {
 			http.Error(w, "Некорректный формат now", http.StatusBadRequest)
 			return
@@ -36,5 +47,11 @@ func nextDateHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Формируем ответ
 	w.Header().Set("Content-Type", "text/plain")
-	fmt.Fprint(w, nextDate)
+
+	// Записываем ответ с обработкой ошибки
+	_, err = fmt.Fprint(w, nextDate)
+	if err != nil {
+		// Логируем ошибку, но не меняем статус ответа
+		log.Printf("Ошибка записи ответа: %s", err)
+	}
 }

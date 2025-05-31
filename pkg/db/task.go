@@ -2,7 +2,14 @@ package db
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
+)
+
+// Ошибки для работы с БД
+var (
+	ErrNotFound = errors.New("запись не найдена")
+	ErrConflict = errors.New("конфликт версий")
 )
 
 // Структура
@@ -45,6 +52,11 @@ func Tasks(limit int) ([]*Task, error) {
 		}
 		tasks = append(tasks, &t)
 	}
+	//Обработка ошибки
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("ошибка при обработке результатов: %w", err)
+	}
+
 	if tasks == nil {
 		tasks = make([]*Task, 0)
 	}

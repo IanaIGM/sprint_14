@@ -17,23 +17,23 @@ func addTaskHandler(w http.ResponseWriter, r *http.Request) {
 	// Десериализация запроса
 	if err := json.NewDecoder(r.Body).Decode(&task); err != nil {
 		log.Printf("Ошибка десериализации: %v", err)
-		writeJSON(w, map[string]string{"error": "Ошибка десериализации JSON"})
+		writeJSON(w, map[string]string{"error": "Ошибка десериализации JSON"}, http.StatusBadRequest)
 		return
 	}
 
 	// Проверка обязательных полей
 	if task.Title == "" {
-		writeJSON(w, map[string]string{"error": "Не указан заголовок задачи"})
+		writeJSON(w, map[string]string{"error": "Не указан заголовок задачи"}, http.StatusBadRequest)
 		return
 	}
 	// Обработка "today"
 	if task.Date == "today" {
-		task.Date = time.Now().Format(dateFormat)
+		task.Date = time.Now().Format(utils.DateFormat)
 	}
 
 	// Проверка даты
 	if err := checkDate(&task); err != nil {
-		writeJSON(w, map[string]string{"error": err.Error()})
+		writeJSON(w, map[string]string{"error": err.Error()}, http.StatusBadRequest)
 		return
 	}
 
@@ -41,17 +41,17 @@ func addTaskHandler(w http.ResponseWriter, r *http.Request) {
 	id, err := db.AddTask(&task)
 	if err != nil {
 		log.Printf("Ошибка добавления задачи: %v", err)
-		writeJSON(w, map[string]string{"error": "Ошибка добавления задачи"})
+		writeJSON(w, map[string]string{"error": "Ошибка добавления задачи"}, http.StatusInternalServerError)
 		return
 	}
-	// Добавляем логирование
+
 	fmt.Printf("Полученный ID: %d\n", id)
 
 	// Возврат ID
 	response := map[string]string{
 		"id": fmt.Sprintf("%d", id),
 	}
-	writeJSON(w, response)
+	writeJSON(w, response, http.StatusCreated)
 }
 
 // Проверка и корректировка даты задачи
@@ -85,4 +85,11 @@ func checkDate(task *db.Task) error {
 	}
 
 	return nil
+}
+func writeJSON(w http.ResponseWriter, data interface{}, statusCode int) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		log.Printf("Ошибка кодирования JSON: %v", err)
+	}
 }

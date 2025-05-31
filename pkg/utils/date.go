@@ -8,6 +8,9 @@ import (
 	"time"
 )
 
+// Константа для формата даты
+const DateFormat = "20060102"
+
 // Функция для проверки, что дата больше текущей
 func AfterNow(date, now time.Time) bool {
 	return date.After(now) || date.Equal(now)
@@ -66,6 +69,5 @@ func NextDate(now time.Time, dstart string, repeat string) (string, error) {
 		return "", errors.New("неподдерживаемый формат правила")
 	}
 
-	// Форматирование результата
-	return start.Format("20060102"), nil
+	return start.Format(DateFormat), nil
 }
