@@ -45,9 +45,11 @@ func TaskHandler(w http.ResponseWriter, r *http.Request) {
 				statusCode = http.StatusNotFound
 			}
 			writeError(w, err.Error(), statusCode)
+			return
 		} else {
 
-			w.Write([]byte(`{}`))
+			writeJSON(w, map[string]interface{}{}, http.StatusOK)
+
 		}
 
 	case http.MethodPut:
@@ -98,7 +100,7 @@ func TaskHandler(w http.ResponseWriter, r *http.Request) {
 			writeError(w, err.Error(), statusCode)
 			return
 		}
-		w.Write([]byte(`{}`))
+		writeJSON(w, map[string]interface{}{}, http.StatusOK)
 
 	default:
 		http.Error(w, "Метод не поддерживается", http.StatusMethodNotAllowed)
@@ -142,8 +144,7 @@ func taskDoneHandler(w http.ResponseWriter, r *http.Request) {
 			writeError(w, err.Error(), statusCode)
 			return
 		}
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{}`))
+		writeJSON(w, map[string]interface{}{}, http.StatusOK)
 		return
 	}
 
@@ -167,9 +168,10 @@ func taskDoneHandler(w http.ResponseWriter, r *http.Request) {
 			writeError(w, err.Error(), statusCode)
 			return
 		}
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{}`))
+		writeError(w, err.Error(), statusCode)
+		return
 	}
+	writeJSON(w, map[string]interface{}{}, http.StatusOK)
 }
 
 func writeError(w http.ResponseWriter, message string, statusCode int) {
